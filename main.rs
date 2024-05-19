@@ -135,13 +135,13 @@ async fn check_auth_ftp(target: &str) -> Result<(), Errors> {
 
     let request = b"USER anonymous\r\n";
     stream.write_all(request).await.map_err(|e|{
-        eprintln!("Ошибка отправки запроса! - {}", e);
+        eprintln!("Ошибка записи данных в поток! - {}", e);
         Errors::Error
     })?;
 
     let mut buffer = [0; 1024];
     let n = stream.read(&mut buffer).await.map_err(|e|{
-        eprintln!("Ошибка записи авторизации - {}", e);
+        eprintln!("Ошибка записи данных из потока! - {}", e);
         Errors::Error
     })?;
 
