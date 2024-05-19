@@ -5,6 +5,7 @@ use custom_errors::Errors;
 use std::io;
 use std::net::IpAddr;
 use reqwest::{Client, Proxy};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::time::Duration;
 
 
@@ -54,11 +55,7 @@ async fn scan_ports(target: &str, start_port: u16, end_port: u16) -> Result<(), 
     for handle in list{
         handle.await?;
     }
-
-    println!("Хотите получить версию сервера?  Y/N");
-    if input_user()?.to_lowercase() == "y"{
-       get_version(target).await?;
-    }
+    check_servers(target).await?;
     Ok(())
 }
 
@@ -84,7 +81,7 @@ fn int_input_user() -> Result<u16, Errors>{
         eprintln!("Ошибка пользовательствого ввода");
         Errors::Error
     })?;
-        buffer.trim().parse::<u16>().map_err(|e| {
+    buffer.trim().parse::<u16>().map_err(|e| {
         eprintln!("Ошибка парсинга - {}", e);
         Errors::Error
     })
@@ -102,7 +99,10 @@ async fn get_version(target: &str) -> Result<(), Errors>{
             Ok(response) => {
                 if let Some(server_header) = response.headers().get("Server"){
                     let version = server_header.to_str().unwrap();
+                    println!("-----------------------------------------------");
                     println!("Версия сервера порта: {} - {}", port, version);
+                    println!("-----------------------------------------------");
+                    println!(" ");
                 }
                 else{
                     println!("Ошибка получения хэдера сервера! Статус - {}", response.status().to_string())
@@ -113,6 +113,40 @@ async fn get_version(target: &str) -> Result<(), Errors>{
             },
         };
     }
+
+    Ok(())
+}
+
+async fn check_auth_ftp(target: &str) -> Result<(), Errors> {
+    let url = format!("{}:21", target);
+    let timeout_dur = Duration::from_secs(5);
+
+    let mut stream = match timeout(timeout_dur, TcpStream::connect(&url)).await {
+        Ok(Ok(stream)) => stream,
+        Err(e) => {
+            eprintln!("Таймаут истек: {}", e);
+            return Err(Errors::Error);
+        },
+        Ok(Err(e)) => {
+            eprintln!("Неопознанная ошибка - {}", e);
+            return Err(Errors::Error);
+        }
+    };
+
+    let request = b"USER anonymous\r\n";
+    stream.write_all(request).await.map_err(|e|{
+        eprintln!("Ошибка отправки запроса! - {}", e);
+        Errors::Error
+    })?;
+
+    let mut buffer = [0; 1024];
+    let n = stream.read(&mut buffer).await.map_err(|e|{
+        eprintln!("Ошибка записи авторизации - {}", e);
+        Errors::Error
+    })?;
+
+    let response = &buffer[..n];
+    println!("Response: {}", String::from_utf8_lossy(response));
 
     Ok(())
 }
@@ -130,6 +164,7 @@ fn ports(port: &u16) -> Ports{
     };
     port_type
 }
+
 fn create_client(proxy: Proxy) -> Result<Client, Errors>{
     Client::builder()
         .timeout(Duration::from_secs(5))
@@ -140,12 +175,14 @@ fn create_client(proxy: Proxy) -> Result<Client, Errors>{
             Errors::Error
         })
 }
+
 fn create_proxy() -> Result<Proxy, Errors>{
     Proxy::https("116.203.207.197:8080").map_err(|e|{
         eprintln!("Ошибка создания прокси! - {}", e);
         Errors::Error
     })
 }
+
 fn input_user() -> Result<String, Errors>{
     let mut buffer = String::new();
     io::stdin().read_line(&mut buffer).map_err(|e| {
@@ -153,6 +190,29 @@ fn input_user() -> Result<String, Errors>{
         Errors::Error
     })?;
     Ok(buffer.trim().to_string())
+}
+
+async fn check_servers(target: &str) -> Result<(), Errors>{
+    println!("Хотите получить версию сервера?  Y/N");
+
+    if input_user()?.to_lowercase() == "y"{
+        println!("Выберите: \n1.Http-Https\n2.Проверка - FTP\n");
+        loop{
+            let user_input = int_input_user()?;
+            match user_input{
+                1 => {
+                    get_version(target).await?;
+                    println!("Повторный выбор: ");
+                },
+                2 => {
+                    if let Err(_) = check_auth_ftp(target).await{}
+                    println!("Повторный выбор: ");
+                }
+                _ => break
+            }
+        }
+    }
+    Ok(())
 }
 
 enum Ports{
