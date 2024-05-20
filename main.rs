@@ -202,11 +202,11 @@ async fn check_servers(target: &str) -> Result<(), Errors>{
             match user_input{
                 1 => {
                     get_version(target).await?;
-                    println!("Повторный выбор: ");
+                    println!("Выберите: \n1.Http-Https\n2.Проверка - FTP\n");
                 },
                 2 => {
                     if let Err(_) = check_auth_ftp(target).await{}
-                    println!("Повторный выбор: ");
+                    println!("Выберите: \n1.Http-Https\n2.Проверка - FTP\n");
                 }
                 _ => break
             }
