@@ -108,7 +108,7 @@ fn ip_input_user() -> Result<String, Errors>{
         Errors::Error
     })?;
 
-    Ok(buffer.trim().to_string())
+    Ok(buffer)
 }
 
 fn int_input_user() -> Result<u16, Errors>{
