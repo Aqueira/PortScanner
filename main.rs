@@ -155,7 +155,7 @@ async fn check_servers(target: &str) -> Result<(), Errors>{
                 }
             }
             2 => {
-                let features = Ports::ftp_authorization(target).await.map_err(|_|{
+                let features = Ports::ftp_authorization(target).await.map_err(|e|{
                         error!("Ошибка FTP Авторизации! - {}", e);
                         Errors::Error
                     })?;
