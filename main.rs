@@ -2,7 +2,9 @@ mod custom_errors;
 mod ftp;
 mod http;
 mod ports;
+mod ssh;
 
+use crate::ssh::{SSHVersion, SSHFeatures};
 use crate::http::{GetServerVersion, HttpFeature};
 use crate::ftp::{FTPFeature, FTPAuthorization};
 use std::sync::Arc;
@@ -21,7 +23,7 @@ const DEFAULT_MAX_PARALLEL_TCP_CONNECTIONS: usize = 1000;
 const TIME_OUT_PROGRAMS: u64 = 3;
 
 #[tokio::main]
-async fn main() -> Result<(), Errors>{
+async fn main() -> Result<(), Errors> {
     std::env::set_var("RUST_LOG", "info");
     env_logger::init();
 
@@ -136,12 +138,14 @@ fn int_input_user() -> Result<u16, Errors>{
         Errors::Error
     })
 }
+
 async fn check_servers(target: &str) -> Result<(), Errors>{
     loop{
-        info!("1.Get => Http-Headers");
+        info!("1.Get => Http Headers");
         info!("2.Get => Ftp Authorization");
+        info!("3.Get => SSH Version");
         info!("Other input => leave");
-        let user_input = int_input_user()?;
+        let user_input = int_input_user()? as u8;
         match user_input{
             1 => {
                 let features = Ports::get_version(target).await.map_err(|e|{
@@ -156,12 +160,23 @@ async fn check_servers(target: &str) -> Result<(), Errors>{
             }
             2 => {
                 let features = Ports::ftp_authorization(target).await.map_err(|e|{
-                        error!("Ошибка FTP Авторизации! - {}", e);
-                        Errors::Error
-                    })?;
+                    error!("Ошибка FTP Авторизации! - {}", e);
+                    Errors::Error
+                })?;
                 for feature in &features{
                     match feature{
                         FTPFeature::Anon(auth) => info!("{}", auth),
+                    }
+                }
+            }
+            3 => {
+                let features = Ports::ssh_version(target).await.map_err(|e|{
+                    error!("Ошибка получения версии SSH! - {}", e);
+                    Errors::Error
+                })?;
+                for feature in &features{
+                    match feature{
+                        SSHFeatures::SSHVersion(version) => info!("{}", version),
                     }
                 }
             }
