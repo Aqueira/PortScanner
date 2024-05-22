@@ -144,7 +144,8 @@ async fn check_servers(target: &str) -> Result<(), Errors>{
         let user_input = int_input_user()?;
         match user_input{
             1 => {
-                let features = Ports::get_version(target).await.map_err(|_|{
+                let features = Ports::get_version(target).await.map_err(|e|{
+                    error!("Ошибка получения версии! - {}", e);
                     Errors::Error
                 })?;
                 for feature in &features{
@@ -155,6 +156,7 @@ async fn check_servers(target: &str) -> Result<(), Errors>{
             }
             2 => {
                 let features = Ports::ftp_authorization(target).await.map_err(|_|{
+                        error!("Ошибка FTP Авторизации! - {}", e);
                         Errors::Error
                     })?;
                 for feature in &features{
