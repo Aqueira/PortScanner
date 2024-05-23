@@ -1,12 +1,10 @@
-mod custom_errors;
+
 mod ftp;
 mod http;
 mod ports;
+mod custom_errors;
 mod ssh;
 
-use crate::ssh::{SSHVersion, SSHFeatures};
-use crate::http::{GetServerVersion, HttpFeature};
-use crate::ftp::{FTPFeature, FTPAuthorization};
 use std::sync::Arc;
 use tokio::time::timeout;
 use tokio::net::TcpStream;
@@ -19,8 +17,19 @@ use tokio::time::Duration;
 use ports::{Ports, ports};
 use env_logger;
 use log::{info, error, warn};
-const DEFAULT_MAX_PARALLEL_TCP_CONNECTIONS: usize = 1000;
+use crate::ftp::ftp_authorization;
+use crate::http::get_version;
+use crate::ssh::ssh_version;
+
+#[derive(PartialEq)]
+#[derive(Debug)]
+pub enum Features{
+    HttpVersion(String),
+    FTPAuthorization(String),
+    SSHVersion(String),
+}
 const TIME_OUT_PROGRAMS: u64 = 3;
+const DEFAULT_MAX_PARALLEL_TCP_CONNECTIONS: usize = 1000;
 
 #[tokio::main]
 async fn main() -> Result<(), Errors> {
@@ -148,35 +157,38 @@ async fn check_servers(target: &str) -> Result<(), Errors>{
         let user_input = int_input_user()? as u8;
         match user_input{
             1 => {
-                let features = Ports::get_version(target).await.map_err(|e|{
+                let features = get_version(target).await.map_err(|e|{
                     error!("Ошибка получения версии! - {}", e);
                     Errors::Error
                 })?;
                 for feature in &features{
                     match feature {
-                        HttpFeature::ServerVersion(version) => info!("{}",version),
+                        Features::HttpVersion(version) => info!("{}",version),
+                        _ => (),
                     }
                 }
             }
             2 => {
-                let features = Ports::ftp_authorization(target).await.map_err(|e|{
+                let features = ftp_authorization(target).await.map_err(|e|{
                     error!("Ошибка FTP Авторизации! - {}", e);
                     Errors::Error
                 })?;
                 for feature in &features{
                     match feature{
-                        FTPFeature::Anon(auth) => info!("{}", auth),
+                        Features::FTPAuthorization(auth) => info!("{}", auth),
+                        _ => (),
                     }
                 }
             }
             3 => {
-                let features = Ports::ssh_version(target).await.map_err(|e|{
+                let features = ssh_version(target).await.map_err(|e|{
                     error!("Ошибка получения версии SSH! - {}", e);
                     Errors::Error
                 })?;
                 for feature in &features{
                     match feature{
-                        SSHFeatures::SSHVersion(version) => info!("{}", version),
+                        Features::SSHVersion(version) => info!("{}", version),
+                        _ => (),
                     }
                 }
             }
