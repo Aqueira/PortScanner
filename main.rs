@@ -157,8 +157,8 @@ async fn check_servers(target: &str) -> Result<(), Errors>{
         let user_input = int_input_user()? as u8;
         match user_input{
             1 => {
-                let features = get_version(target).await.map_err(|e|{
-                    error!("Ошибка получения версии! - {}", e);
+                let features = get_version(target).await.map_err(|_|{
+                    error!("Ошибка получения версии!");
                     Errors::Error
                 })?;
                 for feature in &features{
@@ -169,8 +169,8 @@ async fn check_servers(target: &str) -> Result<(), Errors>{
                 }
             }
             2 => {
-                let features = ftp_authorization(target).await.map_err(|e|{
-                    error!("Ошибка FTP Авторизации! - {}", e);
+                let features = ftp_authorization(target).await.map_err(|_|{
+                    error!("Ошибка FTP Авторизации!");
                     Errors::Error
                 })?;
                 for feature in &features{
@@ -181,8 +181,8 @@ async fn check_servers(target: &str) -> Result<(), Errors>{
                 }
             }
             3 => {
-                let features = ssh_version(target).await.map_err(|e|{
-                    error!("Ошибка получения версии SSH! - {}", e);
+                let features = ssh_version(target).await.map_err(|_|{
+                    error!("Ошибка получения версии SSH!");
                     Errors::Error
                 })?;
                 for feature in &features{
