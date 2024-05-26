@@ -1,11 +1,12 @@
+use std::net::IpAddr;
 use std::time::Duration;
 use log::error;
 use reqwest::{Client, Proxy};
-use crate::custom_errors::Errors;
 use crate::{Features, TIME_OUT_PROGRAMS};
+use crate::custom_errors::Errors;
 
 
-pub async fn get_version(target: &str) -> Result<Vec<Features>, Errors> {
+pub async fn get_version(target: &IpAddr) -> Result<Vec<Features>, Errors> {
     let port_list = [80, 443, 8080, 8443, 8880];
     let client = create_client()?;
     let mut features_list = vec![];
@@ -30,8 +31,7 @@ pub async fn get_version(target: &str) -> Result<Vec<Features>, Errors> {
 
 fn create_client() -> Result<Client, Errors>{
     let proxy = Proxy::https("116.203.207.197:8080").map_err(|e|{
-        error!("Ошибка создания прокси клиента! - {}", e);
-        Errors::Error
+       Errors::error("Ошибка создания прокси!", e)
     })?;
 
     Client::builder()
@@ -39,7 +39,6 @@ fn create_client() -> Result<Client, Errors>{
         .proxy(proxy)
         .build()
         .map_err(|e|{
-            error!("Ошибка создания клиента! - {}", e);
-            Errors::Error
+           Errors::error("Ошибка сорздания клиента!", e)
         })
 }
