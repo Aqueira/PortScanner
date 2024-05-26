@@ -1,13 +1,11 @@
 use std::io;
-use log::error;
 use std::str::FromStr;
 use crate::custom_errors::Errors;
 
 pub fn input() -> Result<String, Errors> {
     let mut buffer = String::new();
     io::stdin().read_line(&mut buffer).map_err(|e|{
-        error!("Ошибка ввода пользователя! - {}", e);
-        Errors::Error
+        Errors::error("Ошибка ввода пользователя", e)
     })?;
     Ok(buffer.trim().to_string())
 }
@@ -22,8 +20,7 @@ impl<T> ParseInput<T> for String
 {
     fn parse_input(&self) -> Result<T, Errors> {
         self.parse::<T>().map_err(|e| {
-            error!("Ошибка парсинга - {}", e);
-            Errors::Error
+            Errors::error("Ошибка парсинга", e)
         })
     }
 
@@ -36,8 +33,7 @@ impl<'a, T> ParseInput<T> for &'a str
 {
     fn parse_input(&self) -> Result<T, Errors> {
         self.parse::<T>().map_err(|e| {
-            error!("Ошибка парсинга - {}", e);
-            Errors::Error
+            Errors::error("Ошибка парсинга", e)
         })
     }
 }
