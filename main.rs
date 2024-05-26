@@ -4,13 +4,12 @@ mod http;
 mod ports;
 mod custom_errors;
 mod ssh;
+mod input;
 
 use std::sync::Arc;
 use tokio::time::timeout;
 use tokio::net::TcpStream;
 use custom_errors::Errors;
-use std::io;
-use std::net::IpAddr;
 use tokio::sync::Semaphore;
 use tokio::task::JoinHandle;
 use tokio::time::Duration;
@@ -19,6 +18,7 @@ use env_logger;
 use log::{info, error, warn};
 use crate::ftp::ftp_authorization;
 use crate::http::get_version;
+use crate::input::{input, parse_to_u8, parse_to_u16, check_ipaddr_input};
 use crate::ssh::ssh_version;
 
 #[derive(PartialEq)]
@@ -38,14 +38,31 @@ async fn main() -> Result<(), Errors> {
 
     let parallel_tcp_connection_limiter = Arc::new(Semaphore::new(DEFAULT_MAX_PARALLEL_TCP_CONNECTIONS));
     info!("Впишите чистое IP");
-    let input_user = ip_input_user()?;
+    let input_user = {
+        let buffer = input()?;
+        check_ipaddr_input(&buffer)?
+    };
     info!("От какого порта сканирование");
-    let first_input_user = int_input_user()?;
+    let first_input_user = {
+        let buffer = input()?;
+        parse_to_u16(&buffer)?
+    };
     info!("До какого порта сканирование");
-    let second_input_user = int_input_user()?;
+    let second_input_user = {
+        let buffer = input()?;
+        parse_to_u16(&buffer)?
+    };
 
-    let async_thread: JoinHandle<Result<(), Errors>> =  tokio::spawn(async move{
-        scan_ports(&input_user, first_input_user, second_input_user, parallel_tcp_connection_limiter).await?;
+    let buffer = input_user.clone();
+    let async_thread: JoinHandle<Result<(), Errors>> = tokio::spawn(async move {
+        scan_ports(buffer, first_input_user, second_input_user, parallel_tcp_connection_limiter).await?;
+        Ok(())
+    });
+    async_thread.await??;
+
+    let buffer = input_user.clone();
+    let async_thread: JoinHandle<Result<(), Errors>> = tokio::spawn(async move {
+        check_servers(buffer).await?;
         Ok(())
     });
     async_thread.await??;
@@ -54,10 +71,11 @@ async fn main() -> Result<(), Errors> {
     Ok(())
 }
 
-async fn port_scan(target: &str, port: u16) {
+async fn port_scan(target: String, port: u16){
     let port_type = ports(&port);
     let timeout_duration = Duration::from_secs(5);
-    match timeout(timeout_duration, TcpStream::connect((target, port))).await{
+    let target_cloned = target.clone();
+    match timeout(timeout_duration, TcpStream::connect((target_cloned, port))).await{
         Ok(Ok(_)) => match port_type {
             Ports::HTTPS => info!("HTTPS - {}:{}", target, port),
             Ports::HTTP => info!("HTTP - {}:{}", target, port),
@@ -90,74 +108,45 @@ async fn port_scan(target: &str, port: u16) {
     }
 }
 
-async fn scan_ports(target: &str, start_port: u16, end_port: u16, parallel_tcp_connection_limiter: Arc<Semaphore>) -> Result<(), Errors>{
+async fn scan_ports(target: String, start_port: u16, end_port: u16, parallel_tcp_connection_limiter: Arc<Semaphore>) -> Result<(), Errors>{
     let mut list = Vec::new();
 
     for port in start_port..=end_port{
-        let buffer = target.to_string();
         let cloned_parallel_tcp_connection_limiter = parallel_tcp_connection_limiter.clone();
-
-        let handle: JoinHandle<Result<(), Errors>> = tokio::spawn( async move  {
+        let target_clone = target.clone();
+        let async_thread: JoinHandle<Result<(), Errors>> = tokio::spawn( async move  {
             let permit = cloned_parallel_tcp_connection_limiter.acquire().await.map_err(|e|{
                 eprintln!("Ошибка получения разрешения симафора! - {}", e);
                 Errors::Error
             })?;
 
-            port_scan(&buffer, port).await;
+            port_scan(target_clone, port).await;
             drop(permit);
             Ok(())
         });
-        list.push(handle);
+        list.push(async_thread);
     }
 
     for handle in list{
         handle.await??;
     }
 
-    check_servers(target).await?;
     Ok(())
 }
 
-fn ip_input_user() -> Result<String, Errors>{
-    let mut buffer = String::new();
-
-    io::stdin().read_line(&mut buffer).map_err(|_| {
-        error!("Ошибка пользовательствого ввода");
-        Errors::Error
-    })?;
-
-    buffer.trim().parse::<IpAddr>().map_err(|e|{
-        error!("Введен неправильный Ip-Address - {}", e);
-        Errors::Error
-    })?;
-
-    Ok(buffer.trim().to_string())
-}
-
-fn int_input_user() -> Result<u16, Errors>{
-    let mut buffer = String::new();
-
-    io::stdin().read_line(&mut buffer).map_err(|_| {
-        error!("Ошибка пользовательствого ввода");
-        Errors::Error
-    })?;
-
-    buffer.trim().parse::<u16>().map_err(|e| {
-        error!("Ошибка парсинга - {}", e);
-        Errors::Error
-    })
-}
-
-async fn check_servers(target: &str) -> Result<(), Errors>{
+async fn check_servers(target: String) -> Result<(), Errors>{
     loop{
         info!("1.Get => Http Headers");
         info!("2.Get => Ftp Authorization");
         info!("3.Get => SSH Version");
         info!("Other input => leave");
-        let user_input = int_input_user()? as u8;
+        let user_input = {
+            let buffer = input()?;
+            parse_to_u8(&buffer)?
+        };
         match user_input{
             1 => {
-                let features = get_version(target).await.map_err(|_|{
+                let features = get_version(&target).await.map_err(|_|{
                     error!("Ошибка получения версии!");
                     Errors::Error
                 })?;
@@ -169,7 +158,7 @@ async fn check_servers(target: &str) -> Result<(), Errors>{
                 }
             }
             2 => {
-                let features = ftp_authorization(target).await.map_err(|_|{
+                let features = ftp_authorization(&target).await.map_err(|_|{
                     error!("Ошибка FTP Авторизации!");
                     Errors::Error
                 })?;
@@ -181,7 +170,7 @@ async fn check_servers(target: &str) -> Result<(), Errors>{
                 }
             }
             3 => {
-                let features = ssh_version(target).await.map_err(|_|{
+                let features = ssh_version(&target).await.map_err(|_|{
                     error!("Ошибка получения версии SSH!");
                     Errors::Error
                 })?;
