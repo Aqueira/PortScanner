@@ -8,8 +8,17 @@ use crate::{Features, TIME_OUT_PROGRAMS};
 use crate::custom_errors::Errors;
 
 
-pub async fn ssh_version(target: &IpAddr) -> Result<Vec<Features>, Errors> {
-    let mut features_list = vec![];
+pub async fn ssh_features(target: &IpAddr) -> Result<Vec<Features>, Errors>{
+    let mut ssh_features = vec![];
+
+    ssh_features.push(ssh_version(target).await.map_err(|e|{
+        Errors::error("Ошибка получения SSH версии!", e);
+    })?);
+
+
+    Ok(ssh_features)
+}
+async fn ssh_version(target: &IpAddr) -> Result<Features, Errors> {
     let ssh_port = 22;
     let url = format!("{}:{}",target, &ssh_port);
     let timeout_duration = Duration::from_secs(TIME_OUT_PROGRAMS);
@@ -27,7 +36,7 @@ pub async fn ssh_version(target: &IpAddr) -> Result<Vec<Features>, Errors> {
                            }
                            let version_brute = String::from_utf8_lossy(&buffer[..read]);
                            if let Some(version) = version_brute.lines().next(){
-                               features_list.push(Features::SSHVersion(version.to_string()));
+                              return Ok(Features::SSHVersion(version.to_string()))
                            }
                        }
                        Err(e) => warn!("Ошибка чтения - {}", e)
@@ -38,7 +47,7 @@ pub async fn ssh_version(target: &IpAddr) -> Result<Vec<Features>, Errors> {
        }
        Ok(Err(e)) => warn!("Ошибка подключения к порту! - {}", e),
        Err(e) => warn!("Таймаут подключения к порту! - {}", e),
-   }
-    Ok(features_list)
+   };
+    Ok(Features::Empty())
 }
 
