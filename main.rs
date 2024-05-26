@@ -51,7 +51,7 @@ async fn main() -> Result<(), Errors> {
     async_thread.await??;
 
     let async_thread: JoinHandle<Result<(), Errors>> = tokio::spawn(async move {
-        check_servers(&input_user).await?;
+        user_interface(&input_user).await?;
         Ok(())
     });
     async_thread.await??;
@@ -121,7 +121,7 @@ async fn scan_ports(target: IpAddr, start_port: u16, end_port: u16, parallel_tcp
     Ok(())
 }
 
-async fn check_servers(target: &IpAddr) -> Result<(), Errors>{
+async fn user_interface(target: &IpAddr) -> Result<(), Errors>{
     loop{
         info!("1.Get => Http Headers");
         info!("2.Get => Ftp Authorization");
