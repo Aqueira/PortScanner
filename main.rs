@@ -1,4 +1,3 @@
-
 mod ftp;
 mod http;
 mod ports;
@@ -6,6 +5,9 @@ mod custom_errors;
 mod ssh;
 mod input;
 
+
+use std::net::IpAddr;
+use crate::input::{input, ParseInput};
 use std::sync::Arc;
 use tokio::time::timeout;
 use tokio::net::TcpStream;
@@ -18,7 +20,6 @@ use env_logger;
 use log::{info, error, warn};
 use crate::ftp::ftp_authorization;
 use crate::http::get_version;
-use crate::input::{input, parse_to_u8, parse_to_u16, check_ipaddr_input};
 use crate::ssh::ssh_version;
 
 #[derive(PartialEq)]
@@ -40,18 +41,16 @@ async fn main() -> Result<(), Errors> {
     info!("Впишите чистое IP");
     let input_user = {
         let buffer = input()?;
-        check_ipaddr_input(&buffer)?
+        buffer.parse::<IpAddr>().map_err(|e|{
+            error!("Ошибка парсинга - {}", e);
+            Errors::Error
+        })?;
+        buffer
     };
     info!("От какого порта сканирование");
-    let first_input_user = {
-        let buffer = input()?;
-        parse_to_u16(&buffer)?
-    };
+    let first_input_user: u16 = input()?.parse_input()?;
     info!("До какого порта сканирование");
-    let second_input_user = {
-        let buffer = input()?;
-        parse_to_u16(&buffer)?
-    };
+    let second_input_user: u16 = input()?.parse_input()?;
 
     let buffer = input_user.clone();
     let async_thread: JoinHandle<Result<(), Errors>> = tokio::spawn(async move {
@@ -75,6 +74,7 @@ async fn port_scan(target: String, port: u16){
     let port_type = ports(&port);
     let timeout_duration = Duration::from_secs(5);
     let target_cloned = target.clone();
+
     match timeout(timeout_duration, TcpStream::connect((target_cloned, port))).await{
         Ok(Ok(_)) => match port_type {
             Ports::HTTPS => info!("HTTPS - {}:{}", target, port),
@@ -140,10 +140,7 @@ async fn check_servers(target: String) -> Result<(), Errors>{
         info!("2.Get => Ftp Authorization");
         info!("3.Get => SSH Version");
         info!("Other input => leave");
-        let user_input = {
-            let buffer = input()?;
-            parse_to_u8(&buffer)?
-        };
+        let user_input: u8 = input()?.parse_input()?;
         match user_input{
             1 => {
                 let features = get_version(&target).await.map_err(|_|{
