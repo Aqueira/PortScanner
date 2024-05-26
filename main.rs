@@ -5,6 +5,7 @@ mod ssh;
 mod input;
 mod custom_errors;
 
+
 use std::net::IpAddr;
 use crate::input::{input, ParseInput};
 use std::sync::Arc;
@@ -17,16 +18,24 @@ use ports::{Ports, ports};
 use env_logger;
 use log::{info, error, warn};
 use crate::custom_errors::Errors;
-use crate::ftp::ftp_authorization;
-use crate::http::get_version;
-use crate::ssh::ssh_version;
+use crate::ftp::ftp_features;
+use crate::http::http_features;
+use crate::ssh::ssh_features;
 
 #[derive(PartialEq)]
 #[derive(Debug)]
 pub enum Features{
+    //#HTTP
     HttpVersion(String),
-    FTPAuthorization(String),
+    //...
+    //#FTP
+    FTPAuth(String),
+    //...
+    //#SSH
     SSHVersion(String),
+    //...
+    //Пустая хуетень
+    Empty(),
 }
 const TIME_OUT_PROGRAMS: u64 = 3;
 const DEFAULT_MAX_PARALLEL_TCP_CONNECTIONS: usize = 1000;
@@ -51,7 +60,7 @@ async fn main() -> Result<(), Errors> {
     async_thread.await??;
 
     let async_thread: JoinHandle<Result<(), Errors>> = tokio::spawn(async move {
-        user_interface(&input_user).await?;
+        user_interface(get_features(&input_user).await.map_err(|e| Errors::error("Ошибка получения особенностей!", e))?).await?;
         Ok(())
     });
     async_thread.await??;
@@ -103,10 +112,7 @@ async fn scan_ports(target: IpAddr, start_port: u16, end_port: u16, parallel_tcp
     for port in start_port..=end_port{
         let cloned_parallel_tcp_connection_limiter = parallel_tcp_connection_limiter.clone();
         let async_thread: JoinHandle<Result<(), Errors>> = tokio::spawn( async move  {
-            let permit = cloned_parallel_tcp_connection_limiter.acquire().await.map_err(|e|{
-                Errors::error("Ошибка получения разрешения симафора!", e)
-            })?;
-
+            let permit = cloned_parallel_tcp_connection_limiter.acquire().await.map_err(|e| Errors::error("Ошибка получения разрешения симафора!", e))?;
             port_scan(target, port).await;
             drop(permit);
             Ok(())
@@ -121,49 +127,24 @@ async fn scan_ports(target: IpAddr, start_port: u16, end_port: u16, parallel_tcp
     Ok(())
 }
 
-async fn user_interface(target: &IpAddr) -> Result<(), Errors>{
-    loop{
-        info!("1.Get => Http Headers");
-        info!("2.Get => Ftp Authorization");
-        info!("3.Get => SSH Version");
-        info!("Other input => leave");
-        let user_input: u8 = input()?.parse_input()?;
-        match user_input{
-            1 => {
-                let features = get_version(target).await.map_err(|e|{
-                    Errors::error("Ошибка получения версии", e)
-                })?;
-                for feature in &features{
-                    match feature {
-                        Features::HttpVersion(version) => info!("{}",version),
-                        _ => (),
-                    }
-                }
-            }
-            2 => {
-                let features = ftp_authorization(target).await.map_err(|e|{
-                    Errors::error("Ошибка FTP авторизации", e)
-                })?;
-                for feature in &features{
-                    match feature{
-                        Features::FTPAuthorization(auth) => info!("{}", auth),
-                        _ => (),
-                    }
-                }
-            }
-            3 => {
-                let features = ssh_version(target).await.map_err(|e|{
-                    Errors::error("Ошибка получения версии", e)
-                })?;
-                for feature in &features{
-                    match feature{
-                        Features::SSHVersion(version) => info!("{}", version),
-                        _ => (),
-                    }
-                }
-            }
-            _ => break
+async fn user_interface(features: Vec<Features>) -> Result<(), Errors>{
+    for feature in &features{
+        match feature{
+            Features::FTPAuth(auth) => warn!("{}", auth),
+            Features::HttpVersion(version) => warn!("{}", version),
+            Features::SSHVersion(version) => warn!("{}", version),
+            _ => (),
         }
     }
     Ok(())
+}
+
+async fn get_features(target: &IpAddr) -> Result<Vec<Features>, Errors> {
+    let http_features = http_features(target).await.map_err(|e| Errors::error("Ошибка получения HTTP особенностей!", e))?;
+    let ssh_features = ssh_features(target).await.map_err(|e| Errors::error("Ошибка получения SSH особенностей!", e))?;
+    let ftp_features = ftp_features(target).await.map_err(|e| Errors::error("Ошибка получения FTP особенностей!", e))?;
+
+    let new_vector: Vec<Features> = vec![http_features, ssh_features, ftp_features].into_iter().flatten().collect();
+
+    Ok(new_vector)
 }
