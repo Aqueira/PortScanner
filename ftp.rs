@@ -7,11 +7,19 @@ use tokio::net::TcpStream;
 use tokio::time::timeout;
 use crate::custom_errors::Errors;
 
+pub async fn ftp_features(target: &IpAddr) -> Result<Vec<Features>, Errors>{
+    let mut ftp_features = vec![];
 
-pub async fn ftp_authorization(target: &IpAddr) -> Result<Vec<Features>, Errors>{
+    let auths = ftp_authorization(target).await.map_err(|e| Errors::error("Ошибка получения анонимной авторизации", e))?;
+    for auth in auths{
+        ftp_features.push(auth);
+    }
+    Ok(ftp_features)
+}
+async fn ftp_authorization(target: &IpAddr) -> Result<Vec<Features>, Errors>{
     let timeout_tcp_duration = Duration::from_secs(TIME_OUT_PROGRAMS);
     let ftp_ports =  vec![20,21];
-    let mut features = vec![];
+    let mut anon_auths = vec![];
 
     for port in &ftp_ports{
         let url = format!("{}:{}", target, port);
@@ -41,14 +49,15 @@ pub async fn ftp_authorization(target: &IpAddr) -> Result<Vec<Features>, Errors>
                 let target_line = "No anonymous login";
 
                 if buffered_text.contains(target_line){
-                    features.push(Features::FTPAuthorization(format!("FTP connect => Rejected - {}:{}",target, port)));
+                    anon_auths.push(Features::FTPAuth(format!("FTP connect => Rejected - {}:{}",target, port)))
                 }
                 else{
-                    features.push(Features::FTPAuthorization(format!("FTP connect => Accepted - {}:{}",target, port)));
+                    anon_auths.push(Features::FTPAuth(format!("FTP connect => Accepted - {}:{}",target, port)))
                 }
             }
             Err(e) => warn!("Ошибка чтения! - {}", e)
         }
     }
-    Ok(features)
+    Ok(anon_auths)
 }
+
