@@ -1,4 +1,3 @@
-
 use crate::error;
 use thiserror::Error;
 use std::fmt;
@@ -20,9 +19,8 @@ pub enum Errors {
     ParseIntError(#[from] ParseIntError),
     #[error("AcquireError: {0}")]
     AcquireError(#[from] AcquireError),
-    #[error("std::io:Error: {0}")]
-    STDError(#[from] std::io::Error),
-
+    #[error("std::io::Error: {0}")]
+    STDIOError(#[from] std::io::Error),
 }
 impl Errors {
     pub fn error(message: &str, err: impl fmt::Display) -> Self {
@@ -30,3 +28,10 @@ impl Errors {
         Errors::Error(format!("{} -> {}", message, err))
     }
 }
+impl From<()> for Errors {
+    fn from(_: ()) -> Self {
+        Errors::Error("An unexpected error occurred".to_string())
+    }
+}
+
+
