@@ -1,12 +1,12 @@
 use std::net::IpAddr;
 use crate::warn;
 use std::time::Duration;
-use log::{error};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::time::timeout;
-use crate::custom_errors::Errors;
 use crate::{Features, TIME_OUT_PROGRAMS};
+use crate::custom_errors::Errors;
+
 
 pub async fn ssh_version(target: &IpAddr) -> Result<Vec<Features>, Errors> {
     let mut features_list = vec![];
@@ -41,3 +41,4 @@ pub async fn ssh_version(target: &IpAddr) -> Result<Vec<Features>, Errors> {
    }
     Ok(features_list)
 }
+
