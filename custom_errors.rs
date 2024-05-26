@@ -1,31 +1,32 @@
-use std::fmt;
-use hyper::header::ToStrError;
-use tokio::task::JoinError;
 
-#[derive(Debug)]
+use crate::error;
+use thiserror::Error;
+use std::fmt;
+use std::num::ParseIntError;
+use tokio::sync::AcquireError;
+
+
+#[derive(Debug, Error)]
 pub enum Errors {
-    Error,
+    #[error("Error: {0}")]
+    Error(String),
+    #[error("Join error: {0}")]
+    JoinError(#[from] tokio::task::JoinError),
+    #[error("Reqwest error: {0}")]
+    ReqwestError(#[from] reqwest::Error),
+    #[error("ToStr error: {0}")]
+    ToStrError(#[from] hyper::header::ToStrError),
+    #[error("Parse int error: {0}")]
+    ParseIntError(#[from] ParseIntError),
+    #[error("AcquireError: {0}")]
+    AcquireError(#[from] AcquireError),
+    #[error("std::io:Error: {0}")]
+    STDError(#[from] std::io::Error),
+
 }
-impl fmt::Display for Errors {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Errors::Error => write!(f, "Error: "),
-        }
-    }
-}
-impl std::error::Error for Errors {}
-impl From<JoinError> for Errors {
-    fn from(_error: JoinError) -> Self {
-        Errors::Error
-    }
-}
-impl From<reqwest::Error> for Errors {
-    fn from(_error: reqwest::Error) -> Self {
-        Errors::Error
-    }
-}
-impl From<ToStrError> for Errors {
-    fn from(_: ToStrError) -> Self {
-        Errors::Error
+impl Errors {
+    pub fn error(message: &str, err: impl fmt::Display) -> Self {
+        error!("{} -> {}", message, err);
+        Errors::Error(format!("{} -> {}", message, err))
     }
 }
