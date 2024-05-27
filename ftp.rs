@@ -10,7 +10,7 @@ use crate::Error;
 pub async fn ftp_features(target: &IpAddr) -> Result<Vec<Features>, Error>{
     let mut ftp_features = vec![];
 
-    let auths = ftp_authorization(target).await.map_err(|e| Error::error("Ошибка получения анонимной авторизации", e))?;
+    let auths = ftp_authorization(target).await.map_err(|e| Error::any("Ошибка получения анонимной авторизации", e))?;
     for auth in auths{
         ftp_features.push(auth);
     }
