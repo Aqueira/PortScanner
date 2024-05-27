@@ -3,19 +3,19 @@ use std::time::Duration;
 use log::error;
 use reqwest::{Client, Proxy};
 use crate::{Features, TIME_OUT_PROGRAMS};
-use crate::custom_errors::Errors;
+use crate::Error;
 
-pub async fn http_features(target: &IpAddr) -> Result<Vec<Features>, Errors>{
+pub async fn http_features(target: &IpAddr) -> Result<Vec<Features>, Error>{
     let mut http_features = vec![];
 
-    let versions = get_version(target).await.map_err(|e| Errors::error("Ошибка получения версии http", e))?;
+    let versions = get_version(target).await.map_err(|e| Error::error("Ошибка получения версии http", e))?;
     for version in versions{
         http_features.push(version);
     }
 
     Ok(http_features)
 }
-async fn get_version(target: &IpAddr) -> Result<Vec<Features>, Errors> {
+async fn get_version(target: &IpAddr) -> Result<Vec<Features>, Error> {
     let port_list = [80, 443, 8080, 8443, 8880];
     let client = create_client()?;
     let mut responses = vec![];
@@ -38,12 +38,12 @@ async fn get_version(target: &IpAddr) -> Result<Vec<Features>, Errors> {
     Ok(responses)
 }
 
-fn create_client() -> Result<Client, Errors>{
-    let proxy = Proxy::https("116.203.207.197:8080").map_err(|e| Errors::error("Ошибка создания прокси!", e))?;
+fn create_client() -> Result<Client, Error>{
+    let proxy = Proxy::https("116.203.207.197:8080").map_err(|e| Error::error("Ошибка создания прокси!", e))?;
 
     Client::builder()
         .timeout(Duration::from_secs(TIME_OUT_PROGRAMS))
         .proxy(proxy)
         .build()
-        .map_err(|e| Errors::error("Ошибка сорздания клиента!", e))
+        .map_err(|e| Error::error("Ошибка сорздания клиента!", e))
 }
