@@ -8,7 +8,7 @@ use crate::Error;
 pub async fn http_features(target: &IpAddr) -> Result<Vec<Features>, Error>{
     let mut http_features = vec![];
 
-    let versions = get_version(target).await.map_err(|e| Error::error("Ошибка получения версии http", e))?;
+    let versions = get_version(target).await.map_err(|e| Error::any("Ошибка получения версии http", e))?;
     for version in versions{
         http_features.push(version);
     }
@@ -39,11 +39,11 @@ async fn get_version(target: &IpAddr) -> Result<Vec<Features>, Error> {
 }
 
 fn create_client() -> Result<Client, Error>{
-    let proxy = Proxy::https("116.203.207.197:8080").map_err(|e| Error::error("Ошибка создания прокси!", e))?;
+    let proxy = Proxy::https("116.203.207.197:8080").map_err(|e| Error::any("Ошибка создания прокси!", e))?;
 
     Client::builder()
         .timeout(Duration::from_secs(TIME_OUT_PROGRAMS))
         .proxy(proxy)
         .build()
-        .map_err(|e| Error::error("Ошибка сорздания клиента!", e))
+        .map_err(|e| Error::any("Ошибка сорздания клиента!", e))
 }
