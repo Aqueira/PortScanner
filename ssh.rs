@@ -5,20 +5,21 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::time::timeout;
 use crate::{Features, TIME_OUT_PROGRAMS};
-use crate::custom_errors::Errors;
+use crate::Error;
 
 
-pub async fn ssh_features(target: &IpAddr) -> Result<Vec<Features>, Errors>{
+pub async fn ssh_features(target: &IpAddr) -> Result<Vec<Features>, Error>{
     let mut ssh_features = vec![];
 
     ssh_features.push(ssh_version(target).await.map_err(|e|{
-        Errors::error("Ошибка получения SSH версии!", e);
+        Error::error("Ошибка получения SSH версии!", e);
     })?);
 
 
     Ok(ssh_features)
 }
-async fn ssh_version(target: &IpAddr) -> Result<Features, Errors> {
+
+async fn ssh_version(target: &IpAddr) -> Result<Features, Error> {
     let ssh_port = 22;
     let url = format!("{}:{}",target, &ssh_port);
     let timeout_duration = Duration::from_secs(TIME_OUT_PROGRAMS);
