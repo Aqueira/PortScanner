@@ -1,12 +1,13 @@
-use crate::error;
 use thiserror::Error;
 use std::fmt;
 use std::num::ParseIntError;
+use aqueiralibrary::errors::Errors;
+use log::{error};
 use tokio::sync::AcquireError;
 
 
 #[derive(Debug, Error)]
-pub enum Errors {
+pub enum Error {
     #[error("Error: {0}")]
     Error(String),
     #[error("Join error: {0}")]
@@ -21,17 +22,20 @@ pub enum Errors {
     AcquireError(#[from] AcquireError),
     #[error("std::io::Error: {0}")]
     STDIOError(#[from] std::io::Error),
+    #[error("aqueiralibraryerror: {0}")]
+    AqueiraErrors(#[from] Errors)
 }
-impl Errors {
-    pub fn error(message: &str, err: impl fmt::Display) -> Self {
+impl Error {
+    pub fn any(message: &str, err: impl fmt::Display) -> Self {
         error!("{} -> {}", message, err);
-        Errors::Error(format!("{} -> {}", message, err))
+        Error::Error(format!("{} -> {}", message, err))
     }
 }
-impl From<()> for Errors {
+impl From<()> for Error {
     fn from(_: ()) -> Self {
-        Errors::Error("An unexpected error occurred".to_string())
+        Error::Error("An unexpected error occurred".to_string())
     }
 }
+
 
 
