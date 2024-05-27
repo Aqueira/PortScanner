@@ -12,13 +12,12 @@ pub async fn ssh_features(target: &IpAddr) -> Result<Vec<Features>, Error>{
     let mut ssh_features = vec![];
 
     ssh_features.push(ssh_version(target).await.map_err(|e|{
-        Error::error("Ошибка получения SSH версии!", e);
+        Error::any("Ошибка получения SSH версии!", e);
     })?);
 
 
     Ok(ssh_features)
 }
-
 async fn ssh_version(target: &IpAddr) -> Result<Features, Error> {
     let ssh_port = 22;
     let url = format!("{}:{}",target, &ssh_port);
@@ -51,4 +50,3 @@ async fn ssh_version(target: &IpAddr) -> Result<Features, Error> {
    };
     Ok(Features::Empty())
 }
-
