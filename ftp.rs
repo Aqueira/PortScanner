@@ -5,18 +5,18 @@ use log::{warn};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::time::timeout;
-use crate::custom_errors::Errors;
+use crate::Error;
 
-pub async fn ftp_features(target: &IpAddr) -> Result<Vec<Features>, Errors>{
+pub async fn ftp_features(target: &IpAddr) -> Result<Vec<Features>, Error>{
     let mut ftp_features = vec![];
 
-    let auths = ftp_authorization(target).await.map_err(|e| Errors::error("Ошибка получения анонимной авторизации", e))?;
+    let auths = ftp_authorization(target).await.map_err(|e| Error::error("Ошибка получения анонимной авторизации", e))?;
     for auth in auths{
         ftp_features.push(auth);
     }
     Ok(ftp_features)
 }
-async fn ftp_authorization(target: &IpAddr) -> Result<Vec<Features>, Errors>{
+async fn ftp_authorization(target: &IpAddr) -> Result<Vec<Features>, Error>{
     let timeout_tcp_duration = Duration::from_secs(TIME_OUT_PROGRAMS);
     let ftp_ports =  vec![20,21];
     let mut anon_auths = vec![];
