@@ -17,7 +17,8 @@ pub async fn http_features(target: &IpAddr) -> Result<Vec<Features>, Error>{
 }
 async fn get_version(target: &IpAddr) -> Result<Vec<Features>, Error> {
     let port_list = [80, 443, 8080, 8443, 8880];
-    let client = create_client()?;
+    let proxy = create_proxy()?;
+    let client = create_client(proxy)?;
     let mut responses = vec![];
 
     for port in &port_list {
@@ -38,12 +39,13 @@ async fn get_version(target: &IpAddr) -> Result<Vec<Features>, Error> {
     Ok(responses)
 }
 
-fn create_client() -> Result<Client, Error>{
-    let proxy = Proxy::https("116.203.207.197:8080").map_err(|e| Error::any("Ошибка создания прокси!", e))?;
-
+fn create_client(proxy: Proxy) -> Result<Client, Error>{
     Client::builder()
         .timeout(Duration::from_secs(TIME_OUT_PROGRAMS))
         .proxy(proxy)
         .build()
         .map_err(|e| Error::any("Ошибка сорздания клиента!", e))
+}
+fn create_proxy() -> Result<Proxy, Error>{
+    Proxy::https("116.203.207.197:8080").map_err(|e| Error::any("Ошибка создания прокси!", e))
 }
