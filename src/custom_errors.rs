@@ -1,10 +1,9 @@
-use thiserror::Error;
+use aqueiralibrary::errors::Errors;
+use log::error;
 use std::fmt;
 use std::num::ParseIntError;
-use aqueiralibrary::errors::Errors;
-use log::{error};
+use thiserror::Error;
 use tokio::sync::AcquireError;
-
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -23,7 +22,7 @@ pub enum Error {
     #[error("std::io::Error: {0}")]
     STDIOError(#[from] std::io::Error),
     #[error("aqueiralibraryerror: {0}")]
-    AqueiraErrors(#[from] Errors)
+    AqueiraErrors(#[from] Errors),
 }
 impl Error {
     pub fn any(message: &str, err: impl fmt::Display) -> Self {
@@ -36,6 +35,3 @@ impl From<()> for Error {
         Error::Error("An unexpected error occurred".to_string())
     }
 }
-
-
-

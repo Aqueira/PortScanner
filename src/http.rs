@@ -1,15 +1,17 @@
-use std::net::IpAddr;
-use std::time::Duration;
+use crate::Error;
+use crate::{Features, TIME_OUT_PROGRAMS};
 use log::error;
 use reqwest::{Client, Proxy};
-use crate::{Features, TIME_OUT_PROGRAMS};
-use crate::Error;
+use std::net::IpAddr;
+use std::time::Duration;
 
-pub async fn http_features(target: &IpAddr) -> Result<Vec<Features>, Error>{
+pub async fn http_features(target: &IpAddr) -> Result<Vec<Features>, Error> {
     let mut http_features = vec![];
 
-    let versions = get_version(target).await.map_err(|e| Error::any("Ошибка получения версии http", e))?;
-    for version in versions{
+    let versions = get_version(target)
+        .await
+        .map_err(|e| Error::any("Ошибка получения версии http", e))?;
+    for version in versions {
         http_features.push(version);
     }
 
@@ -26,11 +28,13 @@ async fn get_version(target: &IpAddr) -> Result<Vec<Features>, Error> {
         match client.get(&url).send().await {
             Ok(response) => {
                 if let Some(server_header) = response.headers().get("Server") {
-                    let version = format!("{}:{} -> {:?}",target, port, server_header);
+                    let version = format!("{}:{} -> {:?}", target, port, server_header);
                     responses.push(Features::HttpVersion(version));
-                }
-                else {
-                    error!("Ошибка получения хэдера сервера! Статус - {}", response.status().to_string())
+                } else {
+                    error!(
+                        "Ошибка получения хэдера сервера! Статус - {}",
+                        response.status().to_string()
+                    )
                 }
             }
             Err(_) => (),
@@ -39,13 +43,13 @@ async fn get_version(target: &IpAddr) -> Result<Vec<Features>, Error> {
     Ok(responses)
 }
 
-fn create_client(proxy: Proxy) -> Result<Client, Error>{
+fn create_client(proxy: Proxy) -> Result<Client, Error> {
     Client::builder()
         .timeout(Duration::from_secs(TIME_OUT_PROGRAMS))
         .proxy(proxy)
         .build()
         .map_err(|e| Error::any("Ошибка сорздания клиента!", e))
 }
-fn create_proxy() -> Result<Proxy, Error>{
+fn create_proxy() -> Result<Proxy, Error> {
     Proxy::https("116.203.207.197:8080").map_err(|e| Error::any("Ошибка создания прокси!", e))
 }
