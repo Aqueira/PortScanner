@@ -34,9 +34,8 @@ async fn main() -> Result<(), Error> {
     info!("До какого порта сканирование");
     let second_input_user: u16 = input()?.parsing()?;
 
-    let async_thread: JoinHandle<Result<(), Error>> = tokio::spawn(async move {
-        scan_ports(input_user, first_input_user, second_input_user, parallel_tcp_connection_limiter).await?;
-        Ok(())
+    let async_thread = tokio::spawn(async move {
+        scan_ports(input_user, first_input_user, second_input_user, parallel_tcp_connection_limiter).await?
     });
     async_thread.await??;
 
