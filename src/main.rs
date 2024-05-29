@@ -1,3 +1,9 @@
+mod custom_errors;
+mod ftp;
+mod http;
+mod ports;
+mod ssh;
+
 use crate::ftp::ftp_features;
 use crate::http::http_features;
 use crate::ssh::ssh_features;
@@ -90,7 +96,7 @@ async fn scan_ports(
     end_port: u16,
     parallel_tcp_connection_limiter: Arc<Semaphore>,
 ) -> Result<Vec<u16>, Error> {
-    let mut list = Vec::new();
+    let mut async_tasks = Vec::new();
     let vector_ports = Arc::new(Mutex::new(vec![]));
 
     for port in (start_port..=end_port).map(|port| Port::from(port)) {
@@ -101,7 +107,7 @@ async fn scan_ports(
             let permit = cloned_parallel_tcp_connection_limiter
                 .acquire()
                 .await
-                .map_err(|e| Error::any("Ошибка получения разрешения симафора!", e))?;
+                .map_err(|e| Error::any("Достигнут лимит разрешений симафора!", e))?;
 
             if let Some(scanned_port) = port_scan(target, port).await {
                 let mut mutex_guard = cloned_vector_ports.lock().await;
@@ -112,10 +118,10 @@ async fn scan_ports(
             drop(permit);
             Ok(())
         });
-        list.push(async_thread);
+        async_tasks.push(async_thread);
     }
 
-    for handle in list {
+    for handle in async_tasks {
         handle.await??;
     }
 
@@ -126,9 +132,9 @@ async fn scan_ports(
 async fn user_interface(features: Vec<Features>) -> Result<(), Error> {
     for feature in &features {
         match feature {
-            Features::FTPAuth(auth) => warn!("{}", auth),
-            Features::HttpVersion(version) => warn!("{}", version),
-            Features::SSHVersion(version) => warn!("{}", version),
+            Features::FTPAuth(auth) => warn!("├─ [FTP] Аутентификация: {}", auth),
+            Features::HttpVersion(version) => warn!("├─ [HTTP] Версия: {}", version),
+            Features::SSHVersion(version) => warn!("├─ [SSH] Версия: {}", version),
             _ => (),
         }
     }
