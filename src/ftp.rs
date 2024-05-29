@@ -10,9 +10,7 @@ use tokio::time::timeout;
 pub async fn ftp_features(target: &IpAddr) -> Result<Vec<Features>, Error> {
     let mut ftp_features = vec![];
 
-    let auths = ftp_authorization(target)
-        .await
-        .map_err(|e| Error::any("Ошибка получения анонимной авторизации", e))?;
+    let auths = ftp_authorization(target).await?;
     for auth in auths {
         ftp_features.push(auth);
     }
@@ -29,14 +27,14 @@ async fn ftp_authorization(target: &IpAddr) -> Result<Vec<Features>, Error> {
             Ok(Ok(stream)) => stream,
             Err(e) => {
                 warn!(
-                    "Таймаут подключения к порту - {} не установлено! - {}",
+                    "├─ [Error] Таймаут подключения к порту - {} не установлено! - {}",
                     port, e
                 );
                 continue;
             }
             Ok(Err(e)) => {
                 warn!(
-                    "Ошибка подключения к порту - {} не установлено! - {}",
+                    "├─ [CriticalError] Ошибка подключения к порту - {} не установлено! - {}",
                     port, e
                 );
                 continue;
