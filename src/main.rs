@@ -32,8 +32,6 @@ pub enum Features {
     //#SSH
     SSHVersion(String),
     //...
-    //Пустая хуетень
-    Empty(),
 }
 const TIME_OUT_PROGRAMS: u64 = 3;
 const DEFAULT_MAX_PARALLEL_TCP_CONNECTIONS: usize = 1000;
@@ -65,7 +63,7 @@ async fn main() -> Result<(), Error> {
     let ports = async_thread.await??;
 
     let async_thread: JoinHandle<Result<(), Error>> = tokio::spawn(async move {
-        user_interface(get_features(&input_user, &ports).await?).await?;
+        user_interface(get_features(&input_user, &ports).await?).await;
         Ok(())
     });
     async_thread.await??;
@@ -129,16 +127,14 @@ async fn scan_ports(
     Ok(vector_u16)
 }
 
-async fn user_interface(features: Vec<Features>) -> Result<(), Error> {
+async fn user_interface(features: Vec<Features>) {
     for feature in &features {
         match feature {
             Features::FTPAuth(auth) => warn!("├─ [FTP] Аутентификация: {}", auth),
             Features::HttpVersion(version) => warn!("├─ [HTTP] Версия: {}", version),
             Features::SSHVersion(version) => warn!("├─ [SSH] Версия: {}", version),
-            _ => (),
         }
     }
-    Ok(())
 }
 
 async fn get_features(target: &IpAddr, port_list: &Vec<u16>) -> Result<Vec<Features>, Error> {
@@ -153,3 +149,4 @@ async fn get_features(target: &IpAddr, port_list: &Vec<u16>) -> Result<Vec<Featu
 
     Ok(new_vector)
 }
+
