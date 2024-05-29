@@ -10,14 +10,14 @@ use tokio::time::timeout;
 pub async fn ssh_features(target: &IpAddr) -> Result<Vec<Features>, Error> {
     let mut ssh_features = vec![];
 
-    ssh_features.push(ssh_version(target).await.map_err(|e| {
-        Error::any("Ошибка получения SSH версии!", e);
-    })?);
+    if let Some(ssh_version) = ssh_version(target).await? {
+        ssh_features.push(ssh_version);
+    }
 
     Ok(ssh_features)
 }
-async fn ssh_version(target: &IpAddr) -> Result<Features, Error> {
-    let ssh_port = 22;
+async fn ssh_version(target: &IpAddr) -> Result<Option<Features>, Error> {
+    let ssh_port: u8 = 22;
     let url = format!("{}:{}", target, &ssh_port);
     let timeout_duration = Duration::from_secs(TIME_OUT_PROGRAMS);
 
@@ -34,7 +34,7 @@ async fn ssh_version(target: &IpAddr) -> Result<Features, Error> {
                             }
                             let version_brute = String::from_utf8_lossy(&buffer[..read]);
                             if let Some(version) = version_brute.lines().next() {
-                                return Ok(Features::SSHVersion(version.to_string()));
+                                return Ok(Some(Features::SSHVersion(version.to_string())));
                             }
                         }
                         Err(e) => warn!("Ошибка чтения - {}", e),
@@ -44,7 +44,7 @@ async fn ssh_version(target: &IpAddr) -> Result<Features, Error> {
             }
         }
         Ok(Err(e)) => warn!("Ошибка подключения к порту! - {}", e),
-        Err(e) => warn!("Таймаут подключения к порту! - {}", e),
+        Err(e) => warn!("├─ Таймаут подключения к порту! - {}", e),
     };
-    Ok(Features::Empty())
+    Ok(None)
 }
