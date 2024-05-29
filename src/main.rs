@@ -6,7 +6,6 @@ use custom_errors::Error;
 use env_logger;
 use log::{info, warn};
 use ports::Port;
-use std::any::Any;
 use std::net::IpAddr;
 use std::sync::Arc;
 use tokio::net::TcpStream;
@@ -15,12 +14,6 @@ use tokio::sync::Semaphore;
 use tokio::task::JoinHandle;
 use tokio::time::timeout;
 use tokio::time::Duration;
-
-mod custom_errors;
-mod ftp;
-mod http;
-mod ports;
-mod ssh;
 
 #[derive(PartialEq, Debug)]
 pub enum Features {
@@ -46,31 +39,28 @@ async fn main() -> Result<(), Error> {
 
     let parallel_tcp_connection_limiter =
         Arc::new(Semaphore::new(DEFAULT_MAX_PARALLEL_TCP_CONNECTIONS));
-    info!("Впишите IPv4");
+    info!("Впишите чистое IP");
     let input_user: IpAddr = input()?.parsing()?;
     info!("От какого порта сканирование");
     let first_input_user: u16 = input()?.parsing()?;
     info!("До какого порта сканирование");
     let second_input_user: u16 = input()?.parsing()?;
 
-    let async_thread: JoinHandle<Result<(), Error>> = tokio::spawn(async move {
-        scan_ports(
+    let async_thread: JoinHandle<Result<Vec<u16>, Error>> = tokio::spawn(async move {
+        let ports = scan_ports(
             input_user,
             first_input_user,
             second_input_user,
             parallel_tcp_connection_limiter,
         )
-        .await
+        .await?;
+        Ok(ports)
     });
-    async_thread.await??;
+    let ports = async_thread.await??;
 
     let async_thread: JoinHandle<Result<(), Error>> = tokio::spawn(async move {
-        user_interface(
-            get_features(&input_user)
-                .await
-                .map_err(|e| Error::any("Ошибка получения особенностей!", e))?,
-        )
-        .await
+        user_interface(get_features(&input_user, &ports).await?).await?;
+        Ok(())
     });
     async_thread.await??;
 
@@ -78,13 +68,19 @@ async fn main() -> Result<(), Error> {
     Ok(())
 }
 
-async fn port_scan(target: IpAddr, port: Port) {
-    let timeout_duration = Duration::from_secs(5);
+async fn port_scan(target: IpAddr, port: Port) -> Option<u16> {
+    let timeout_duration = Duration::from_secs(TIME_OUT_PROGRAMS);
 
     match timeout(timeout_duration, TcpStream::connect((target, port.num))).await {
-        Ok(Ok(_)) => info!("{} - {}:{}", port.name, target, port.num),
-        Ok(Err(e)) => warn!("Ошибка подключения к порту - {}", e),
-        Err(_) => (),
+        Ok(Ok(_)) => {
+            info!("{} -> {}:{}", port.name, target, port.num);
+            return Some(port.num);
+        }
+        Ok(Err(e)) => {
+            warn!("Ошибка подключения к порту - {}", e);
+            None
+        }
+        Err(_) => None,
     }
 }
 
@@ -93,22 +89,26 @@ async fn scan_ports(
     start_port: u16,
     end_port: u16,
     parallel_tcp_connection_limiter: Arc<Semaphore>,
-) -> Result<(), Error> {
+) -> Result<Vec<u16>, Error> {
     let mut list = Vec::new();
+    let vector_ports = Arc::new(Mutex::new(vec![]));
 
     for port in (start_port..=end_port).map(|port| Port::from(port)) {
         let cloned_parallel_tcp_connection_limiter = parallel_tcp_connection_limiter.clone();
+        let cloned_vector_ports = vector_ports.clone();
+
         let async_thread: JoinHandle<Result<(), Error>> = tokio::spawn(async move {
             let permit = cloned_parallel_tcp_connection_limiter
                 .acquire()
                 .await
-                .map_err(|e| {
-                    Error::any(
-                        "Достигнут максимум параллельных подключений сканирования",
-                        e,
-                    )
-                })?;
-            port_scan(target, port).await;
+                .map_err(|e| Error::any("Ошибка получения разрешения симафора!", e))?;
+
+            if let Some(scanned_port) = port_scan(target, port).await {
+                let mut mutex_guard = cloned_vector_ports.lock().await;
+                mutex_guard.push(scanned_port);
+                drop(mutex_guard)
+            }
+
             drop(permit);
             Ok(())
         });
@@ -119,7 +119,8 @@ async fn scan_ports(
         handle.await??;
     }
 
-    Ok(())
+    let vector_u16 = vector_ports.lock().await.clone();
+    Ok(vector_u16)
 }
 
 async fn user_interface(features: Vec<Features>) -> Result<(), Error> {
@@ -134,16 +135,10 @@ async fn user_interface(features: Vec<Features>) -> Result<(), Error> {
     Ok(())
 }
 
-async fn get_features(target: &IpAddr) -> Result<Vec<Features>, Error> {
-    let http_features = http_features(target)
-        .await
-        .map_err(|e| Error::any("Ошибка получения HTTP особенностей!", e))?;
-    let ssh_features = ssh_features(target)
-        .await
-        .map_err(|e| Error::any("Ошибка получения SSH особенностей!", e))?;
-    let ftp_features = ftp_features(target)
-        .await
-        .map_err(|e| Error::any("Ошибка получения FTP особенностей!", e))?;
+async fn get_features(target: &IpAddr, port_list: &Vec<u16>) -> Result<Vec<Features>, Error> {
+    let http_features = http_features(target, port_list).await?;
+    let ssh_features = ssh_features(target).await?;
+    let ftp_features = ftp_features(target).await?;
 
     let new_vector: Vec<Features> = vec![http_features, ssh_features, ftp_features]
         .into_iter()
