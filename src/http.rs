@@ -1,55 +1,68 @@
-use crate::Error;
+use crate::custom_errors::Error;
 use crate::{Features, TIME_OUT_PROGRAMS};
 use log::error;
-use reqwest::{Client, Proxy};
+use reqwest::{Client, Proxy, Response};
 use std::net::IpAddr;
 use std::time::Duration;
 
-pub async fn http_features(target: &IpAddr) -> Result<Vec<Features>, Error> {
+pub async fn http_features(target: &IpAddr, port_list: &Vec<u16>) -> Result<Vec<Features>, Error> {
     let mut http_features = vec![];
 
-    let versions = get_version(target)
-        .await
-        .map_err(|e| Error::any("Ошибка получения версии http", e))?;
+    let versions = get_version(target, port_list).await?;
     for version in versions {
         http_features.push(version);
     }
 
     Ok(http_features)
 }
-async fn get_version(target: &IpAddr) -> Result<Vec<Features>, Error> {
-    let port_list = [80, 443, 8080, 8443, 8880];
-    let proxy = create_proxy()?;
-    let client = create_client(proxy)?;
+
+async fn get_version(target: &IpAddr, port_list: &Vec<u16>) -> Result<Vec<Features>, Error> {
+    let client = create_client()?;
     let mut responses = vec![];
 
-    for port in &port_list {
+    for port in port_list {
         let url = format!("http://{}:{}", target, port);
-        match client.get(&url).send().await {
-            Ok(response) => {
-                if let Some(server_header) = response.headers().get("Server") {
-                    let version = format!("{}:{} -> {:?}", target, port, server_header);
-                    responses.push(Features::HttpVersion(version));
-                } else {
-                    error!(
-                        "Ошибка получения хэдера сервера! Статус - {}",
-                        response.status().to_string()
-                    )
-                }
+        if let Some(response) = send_request(&url, &client).await {
+            if let Some(version) = get_header(&response, target, port) {
+                responses.push(Features::HttpVersion(version));
+            } else {
+                error!(
+                    "Ошибка получения хэдера сервера! Статус - {}",
+                    response.status().to_string()
+                )
             }
-            Err(_) => (),
-        };
+        }
     }
     Ok(responses)
 }
 
-fn create_client(proxy: Proxy) -> Result<Client, Error> {
+fn create_client() -> Result<Client, Error> {
+    let proxy = create_proxy()?;
     Client::builder()
         .timeout(Duration::from_secs(TIME_OUT_PROGRAMS))
         .proxy(proxy)
         .build()
-        .map_err(|e| Error::any("Ошибка сорздания клиента!", e))
+        .map_err(|e| Error::any("Ошибка создания клиента", e))
 }
+
 fn create_proxy() -> Result<Proxy, Error> {
-    Proxy::https("116.203.207.197:8080").map_err(|e| Error::any("Ошибка создания прокси!", e))
+    Proxy::https("116.203.207.197:8080").map_err(|e| Error::any("Ошибка создания прокси", e))
 }
+
+fn get_header(response: &Response, target: &IpAddr, port: &u16) -> Option<String> {
+    if let Some(server_header) = response.headers().get("Server") {
+        return Some(format!(
+            "{}:{} -> version: {:?}",
+            target, port, server_header
+        ));
+    }
+    None
+}
+
+async fn send_request(url: &str, client: &Client) -> Option<Response> {
+    return match client.get(url).send().await {
+        Ok(response) => Some(response),
+        Err(_) => None,
+    };
+}
+
